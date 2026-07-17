@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>AgroSentinel - Mapa</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<style>
+  html, body { margin: 0; padding: 0; height: 100%; font-family: sans-serif; }
+  #map { width: 100%; height: 100vh; }
+  .badge-real { background:#0f766e; color:#fff; font-size:10px; padding:2px 6px; border-radius:4px; display:inline-block; font-weight:bold; }
+  .badge-historico { background:#888; color:#fff; font-size:10px; padding:2px 6px; border-radius:4px; display:inline-block; font-weight:bold; }
+  .leyenda {
+    position: absolute; bottom: 20px; left: 10px; z-index: 1000;
+    background: white; padding: 10px 14px; border-radius: 6px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.3); font-size: 12px;
+  }
+  .leyenda div { margin: 3px 0; }
+  .punto { display:inline-block; width:10px; height:10px; border-radius:50%; margin-right:6px; }
+  .popup-grande { min-width: 250px; }
+  .accion-principal { font-size: 16px; font-weight: 700; line-height: 1.3; margin: 6px 0; color: #111827; }
+  .tecnico { font-size: 12px; color: #4b5563; margin-bottom: 4px; }
+  .forecast-mini { font-size: 11px; color: #6b7280; border-top: 1px solid #e5e7eb; padding-top: 4px; }
+  .cultivo-tag { font-size: 13px; color: #15803d; font-weight: bold; }
+  .fito-box { font-size: 12px; margin-top: 6px; padding: 6px 8px; border-radius: 6px; }
+  .fito-alto { background: #fee2e2; color: #991b1b; }
+  .fito-medio { background: #fef3c7; color: #92400e; }
+  .fito-bajo { background: #dcfce7; color: #166534; }
+  .fito-interpretacion { font-size: 10px; color: #6b7280; margin-top: 3px; font-style: italic; }
+</style>
+</head>
+<body>
+<div id="map"></div>
+<div class="leyenda">
+  <b>Estado VPD</b>
+  <div><span class="punto" style="background:#2ecc71"></span>Sin estres (&lt; 1.5 kPa)</div>
+  <div><span class="punto" style="background:#f39c12"></span>Moderado (1.5 - 3.0 kPa)</div>
+  <div><span class="punto" style="background:#e74c3c"></span>Critico (&gt; 3.0 kPa)</div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+  var map = L.map('map').setView([37.5, -4.6], 8);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; OpenStreetMap contributors'
+  }).addTo(map);
+
+  function clasificar(vpd) {
+    if (vpd > 3.0) return { color: "#e74c3c", estado: "Estres critico", icono: "🔴", radio: 20 };
+    if (vpd > 1.5) return { color: "#f39c12", estado: "Estres moderado", icono: "💧", radio: 16 };
+    return { color: "#2ecc71", estado: "Sin estres", icono: "✅", radio: 12 };
+  }
+
+  function calcularRiesgoFitosanitario(cultivo, temp, vpd) {
+    var enfermedad = cultivo === "Olivo" ? "repilo" : "alternaria";
+    var rangoAlto, rangoMedio;
+
+    if (cultivo === "Olivo") {
+      rangoAlto = temp >= 14 && temp <= 20;
+      rangoMedio = temp >= 8 && temp <= 28;
+    } else {
+      rangoAlto = temp >= 20 && temp <= 25;
+      rangoMedio = temp >= 18 && temp <= 28;
+    }
+
+    var nivel, clase, interpretacion, recomendacion;
+    if (rangoAlto && vpd < 0.7) {
+      nivel = "Riesgo alto"; clase = "fito-alto";
+      interpretacion = "Condiciones favorables para infeccion si se mantienen varias horas"; recomendacion = "Vigilar de cerca, valorar tratamiento preventivo";
+    } else if (rangoMedio && vpd < 1.2) {
+      nivel = "Riesgo medio"; clase = "fito-medio";
+      interpretacion = "Vigilar evolucion de humedad y temperatura"; recomendacion = "Sin accion inmediata, revisar en proximas horas";
+    } else {
+      nivel = "Riesgo bajo"; clase = "fito-bajo";
+      interpretacion = "Ambiente poco favorable para la infeccion"; recomendacion = "No se requiere tratamiento fitosanitario";
+    }
+
+    return {
+      html: "<div class='fito-box " + clase + "'>" +
+              "Estado fitosanitario (" + enfermedad + "): <b>" + nivel + "</b>" +
+              "<div class='fito-interpretacion'>" + interpretacion + "</div>" + "<div class='fito-interpretacion' style='font-style:normal; font-weight:600; margin-top:2px;'>" + recomendacion + "</div>" +
+            "</div>"
+    };
+  }
+
+  function tiempoTranscurrido(timestamp) {
+    var ahora = new Date();
+    var ts2 = timestamp.includes('Z') ? timestamp : timestamp + 'Z';
+    var entonces = new Date(ts2);
+    var segs = Math.floor((ahora - entonces) / 1000);
+    if (segs < 60) return "hace " + segs + "s";
+    var mins = Math.floor(segs / 60);
+    if (mins < 60) return "hace " + mins + " min";
+    var horas = Math.floor(mins / 60);
+    return "hace " + horas + "h";
+  }
+
+  function crearMarcador(lat, lon, nombre, badge, cultivo) {
+    var marker = L.circleMarker([lat, lon], {
+      radius: 14, fillColor: "#888", color: "#444", weight: 2, fillOpacity: 0.9
+    }).addTo(map);
+    marker.bindPopup("Cargando " + nombre + "...");
+    marker._nombre = nombre;
+    marker._badge = badge;
+    marker._cultivo = cultivo;
+    return marker;
+  }
+
+  function pintarPopup(marker, payload) {
+    var rec = payload.recommendation;
+    var vpd = rec.vpd;
+    var temp = payload.reading ? payload.reading.temperature : null;
+    var c = clasificar(vpd);
+    marker.setStyle({ fillColor: c.color, color: c.color, radius: c.radio });
+
+    var ahora = new Date();
+    var horaActual = ahora.getHours();
+    var accion = "";
+
+    if (rec.stress === "Severe" || vpd > 3.0) {
+      if (horaActual >= 10 && horaActual < 20) {
+        accion = "🚨 Riego urgente inmediato (" + rec.dose_m3ha + " m3/ha)";
+      } else {
+        accion = "Regar " + rec.dose_m3ha + " m3/ha antes de las 10:00";
+      }
+    } else if (vpd > 1.5) {
+      if (horaActual >= 10 && horaActual < 20) {
+        accion = "Vigilar riego hoy (" + rec.dose_m3ha + " m3/ha para el atardecer)";
+      } else {
+        accion = "Vigilar riego hoy (" + rec.dose_m3ha + " m3/ha cada " + rec.frequency + ")";
+      }
+    } else {
+      accion = "No es necesario regar hoy";
+    }
+
+    var prox3 = payload.forecast.slice(0, 3).map(function(d) {
+      return d.day + ": " + d.dose_m3ha + " m3/ha";
+    }).join(" · ");
+
+    var ts = payload.reading && payload.reading.timestamp ? tiempoTranscurrido(payload.reading.timestamp) : "";
+
+    var textoBadge = marker._badge === 'badge-real' ? 'DATO REAL (en vivo)' : 'DATO REAL (historico)';
+
+    var fitoHtml = "";
+    if (temp !== null) {
+      var fito = calcularRiesgoFitosanitario(marker._cultivo, temp, vpd);
+      fitoHtml = fito.html;
+    }
+
+    var html = "<div class='popup-grande'>" +
+                "<span class='cultivo-tag'>" + marker._cultivo + " " + c.icono + " " + c.estado + "</span><br>" +
+                "<div class='accion-principal'>" + accion + "</div>" +
+                "<div class='tecnico'>VPD " + vpd + " kPa &middot; ETc " + rec.etc_mm + " mm</div>" +
+                fitoHtml +
+                "<div class='forecast-mini'>Proximos dias: " + prox3 + "</div>" +
+                "<hr style='margin:8px 0'>" +
+                "<small style='color:#4b5563; font-weight:500;'>" + marker._nombre + "</small><br>" +
+                "<span class='" + marker._badge + "' style='margin-top:4px;'>" + textoBadge + "</span>" +
+                (ts ? " <small style='color:#888'>" + ts + "</small>" : "") +
+                "</div>";
+    marker.setPopupContent(html);
+  }
+
+  var markerCitri = crearMarcador(37.71, -5.28, "Sensor cítrico - dato real", "badge-real", "Citrico");
+  var markerCasa = crearMarcador(37.2828, -5.9220, "Sensor propio - Dos Hermanas", "badge-real", "Olivo");
+
+  function actualizarCitri() {
+    fetch('https://api.agrosentinel.dev/agricultor/field-sensor')
+      .then(function(res) { return res.json(); })
+      .then(function(data) { pintarPopup(markerCitri, data); })
+      .catch(function(err) { markerCitri.setPopupContent("Error: " + err); });
+  }
+
+  function actualizarCasa() {
+    fetch('https://api.agrosentinel.dev/agricultor/dos-hermanas')
+      .then(function(res) { return res.json(); })
+      .then(function(data) { pintarPopup(markerCasa, data); })
+      .catch(function(err) { markerCasa.setPopupContent("Error: " + err); });
+  }
+
+  actualizarCitri();
+  actualizarCasa();
+
+  setInterval(function() {
+    actualizarCitri();
+    actualizarCasa();
+  }, 30000);
+</script>
+</body>
+</html>

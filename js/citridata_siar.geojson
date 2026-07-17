@@ -1,0 +1,10 @@
+{ "type": "FeatureCollection", "features": [ 
+{"type":"Feature","geometry":{"type":"Point","coordinates":[-5.160115615020414,37.7198610307122]},"properties":{"entity_id":"urn:ngsi-ld:citri.em.siar:siar-co04"}},
+{"type":"Feature","geometry":{"type":"Point","coordinates":[-4.504043806260462,37.913913140349486]},"properties":{"entity_id":"urn:ngsi-ld:citri.em.siar:siar-co05"}},
+{"type":"Feature","geometry":{"type":"Point","coordinates":[-4.885506156064094,37.52243055634705]},"properties":{"entity_id":"urn:ngsi-ld:citri.em.siar:siar-co07"}},
+{"type":"Feature","geometry":{"type":"Point","coordinates":[-4.306052358184962,37.691592828338635]},"properties":{"entity_id":"urn:ngsi-ld:citri.em.siar:siar-co08"}},
+{"type":"Feature","geometry":{"type":"Point","coordinates":[-4.430952960373181,37.500874432597435]},"properties":{"entity_id":"urn:ngsi-ld:citri.em.siar:siar-co101"}},
+{"type":"Feature","geometry":{"type":"Point","coordinates":[-4.802845668468914,37.8572660884734]},"properties":{"entity_id":"urn:ngsi-ld:citri.em.siar:siar-co06"}},
+{"type":"Feature","geometry":{"type":"Point","coordinates":[-5.227192564261362,37.72578097978753]},"properties":{"entity_id":"urn:ngsi-ld:citri.em.siar:siar-co09"}},
+{"type":"Feature","geometry":{"type":"Point","coordinates":[-5.11545245413401,38.496270031670385]},"properties":{"entity_id":"urn:ngsi-ld:citri.em.siar:siar-co102"}},
+{"type":"Feature","geometry":{"type":"Point","coordinates":[-5.20956346230389,38.25439453383958]},"properties":{"entity_id":"urn:ngsi-ld:citri.em.siar:siar-co01"}}] }

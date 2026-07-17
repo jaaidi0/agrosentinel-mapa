@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>AgroSentinel - Mapa</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<style>
+  :root {
+    --verde-oscuro: #0f5132;
+    --verde-acento: #0f766e;
+    --gris-texto: #4b5563;
+    --gris-claro: #6b7280;
+  }
+
+  html, body {
+    margin: 0; padding: 0; height: 100%;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  body { display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+
+  /* ── Global micro-interactions ─────────────────────────────────────── */
+  button, .leaflet-popup, .leyenda, .marker-depth, .station-status .dot, .station-status .stress-dot {
+    transition: transform 0.2s ease, opacity 0.2s ease, background-color 0.2s ease, box-shadow 0.2s ease;
+  }
+
+  /* ── Header ─────────────────────────────────────────────────────────── */
+  .app-header {
+    display: flex; align-items: center; justify-content: space-between;
+    height: 56px; box-sizing: border-box; padding: 0 20px;
+    background: linear-gradient(to bottom, #ffffff, #f9fafb);
+    box-shadow: 0 1px 6px rgba(0,0,0,0.08); z-index: 1100; flex: 0 0 auto;
+  }
+  .app-header .brand { display: flex; align-items: center; gap: 14px; height: 100%; }
+  .brand-accent { width: 3px; align-self: stretch; margin: 12px 0; background: var(--verde-acento); border-radius: 2px; }
+  .brand-text { display: flex; flex-direction: column; line-height: 1.25; }
+  .brand-text .logo { font-size: 17px; font-weight: 800; color: #111827; letter-spacing: 0.2px; }
+  .brand-text .subtitle { font-size: 11px; color: var(--gris-claro); margin-top: 1px; }
+  .header-right { display: flex; align-items: center; gap: 16px; }
+  .header-divider { width: 1px; height: 16px; background: #e5e7eb; flex: 0 0 auto; }
+  .header-clock { font-size: 13px; font-weight: 600; color: #374151; font-variant-numeric: tabular-nums; }
+  .live-indicator {
+    display: flex; align-items: center; gap: 7px; font-size: 12px;
+    font-weight: 700; color: var(--verde-acento); letter-spacing: 0.4px;
+  }
+  .live-dot {
+    width: 9px; height: 9px; border-radius: 50%; background: #22c55e;
+    animation: dot-blink 1.6s infinite;
+  }
+  @keyframes dot-blink {
+    0%   { box-shadow: 0 0 0 0 rgba(34,197,94,0.6); }
+    70%  { box-shadow: 0 0 0 7px rgba(34,197,94,0); }
+    100% { box-shadow: 0 0 0 0 rgba(34,197,94,0); }
+  }
+
+  /* ── Map area ───────────────────────────────────────────────────────── */
+  .map-wrap { position: relative; flex: 1 1 auto; min-height: 0; }
+  #map { position: absolute; inset: 0; }
+
+  .marker-depth { filter: drop-shadow(0 2px 4px rgba(0,0,0,0.35)); transition: transform 0.2s ease; transform-box: fill-box; transform-origin: center; }
+  .marker-depth:hover { transform: scale(1.1); }
+  .marker-live { transform-box: fill-box; transform-origin: center; animation: marker-pulse 1.8s ease-in-out infinite; }
+  @keyframes marker-pulse {
+    0%, 100% { transform: scale(1); }
+    50%      { transform: scale(1.18); }
+  }
+  .marker-update { animation: marker-flash 0.38s ease-out; }
+  @keyframes marker-flash {
+    0%   { transform: scale(1); }
+    50%  { transform: scale(1.25); }
+    100% { transform: scale(1); }
+  }
+
+  /* ── Legend ─────────────────────────────────────────────────────────── */
+  .leyenda {
+    position: absolute; bottom: 16px; left: 10px; z-index: 1000;
+    background: #fff; padding: 12px 14px; border-radius: 10px;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.18); font-size: 12px; min-width: 190px;
+  }
+  .leyenda b { color: #111827; display: block; margin-bottom: 6px; }
+  .leyenda div.fila {
+    margin: 4px 0; padding: 3px 0 3px 10px; border-left: 3px solid transparent;
+    display: flex; align-items: center; border-radius: 4px; transition: background-color 0.2s ease;
+  }
+  .leyenda div.fila:hover { background: #f0fdf4; }
+  .punto { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 7px; flex: 0 0 auto; }
+  .leyenda-actualizado {
+    margin-top: 8px; padding-top: 6px; border-top: 1px solid #e5e7eb;
+    font-size: 10px; color: var(--gris-claro);
+  }
+
+  /* ── Popup card ─────────────────────────────────────────────────────── */
+  .leaflet-popup-content-wrapper {
+    border-radius: 12px; box-shadow: 0 8px 24px rgba(0,0,0,0.2); padding: 0; overflow: hidden;
+    opacity: 0; transform: scale(0.97); transform-origin: bottom center;
+  }
+  .leaflet-popup-content-wrapper.popup-anim { animation: popup-fade-in 0.2s ease forwards; }
+  @keyframes popup-fade-in {
+    from { opacity: 0; transform: scale(0.97); }
+    to   { opacity: 1; transform: scale(1); }
+  }
+  .leaflet-popup-content { margin: 0; }
+  .popup-grande { min-width: 280px; font-family: inherit; }
+  .popup-status-strip { height: 6px; width: 100%; }
+  .popup-body { padding: 14px 18px; }
+  .popup-header { display: flex; align-items: center; gap: 6px; margin-bottom: 2px; }
+  .cultivo-icono { font-size: 16px; }
+  .cultivo-tag { font-size: 13px; color: #15803d; font-weight: 700; }
+  .accion-principal {
+    font-size: 18px; font-weight: 700; line-height: 1.3; margin: 6px 0; color: #111827;
+    background: rgba(0,0,0,0.03); padding: 6px 8px; border-radius: 6px;
+  }
+  .tecnico { font-size: 12px; color: var(--gris-texto); margin-bottom: 4px; }
+  .popup-divider { border-top: 1px solid #e5e7eb; margin: 10px 0; }
+  .popup-estacion { color: #4b5563; font-weight: 500; }
+  .forecast-mini { font-size: 11px; color: var(--gris-claro); }
+  .fito-box { font-size: 12px; margin-top: 6px; padding: 8px 10px; border-radius: 8px; }
+  .fito-alto { background: #fee2e2; color: #991b1b; }
+  .fito-medio { background: #fef3c7; color: #92400e; }
+  .fito-bajo { background: #dcfce7; color: #166534; }
+  .fito-interpretacion { font-size: 10px; color: var(--gris-claro); margin-top: 3px; font-style: italic; }
+  .forecast-table-wrap { border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden; margin-top: 6px; }
+  .forecast-table { width: 100%; border-collapse: collapse; font-size: 11px; }
+  .forecast-table th { color: var(--gris-claro); font-weight: 600; padding: 6px 6px; text-align: left; background: #f9fafb; border-bottom: 1px solid #e5e7eb; }
+  .forecast-table td { padding: 6px 6px; }
+  .forecast-table tr:nth-child(even) { background: #f9fafb; }
+  .forecast-table tr:hover { background: #eef2f7; transition: background-color 0.2s ease; }
+  .vpd-ok { background: #dcfce7; color: #166534; border-radius: 4px; padding: 1px 5px; font-weight: 600; }
+  .vpd-mod { background: #fef3c7; color: #92400e; border-radius: 4px; padding: 1px 5px; font-weight: 600; }
+  .vpd-crit { background: #fee2e2; color: #991b1b; border-radius: 4px; padding: 1px 5px; font-weight: 600; }
+  .badge-real { background: #0d5c54; color: #fff; font-size: 10px; padding: 3px 11px; border-radius: 999px; display: inline-block; font-weight: bold; letter-spacing: 0.2px; }
+  .badge-historico { background: #6b7280; color: #fff; font-size: 10px; padding: 3px 11px; border-radius: 999px; display: inline-block; font-weight: bold; letter-spacing: 0.2px; }
+
+  /* ── Connection status (chip + last-known-data banner) ───────────────── */
+  .conexion-chip {
+    margin-left: auto; font-size: 10px; font-weight: 700; padding: 2px 9px;
+    border-radius: 999px; white-space: nowrap;
+  }
+  .conexion-activo      { background: #dcfce7; color: #166534; }
+  .conexion-degradado   { background: #fef3c7; color: #92400e; }
+  .conexion-desconectado{ background: #fee2e2; color: #991b1b; }
+  .ultimo-dato-box {
+    font-size: 11px; color: var(--gris-texto); background: #f3f4f6;
+    border-radius: 8px; padding: 7px 9px; margin: 6px 0 2px;
+  }
+  .ultimo-dato-box b { display: block; margin-bottom: 2px; color: #111827; font-size: 11px; }
+  .datos-no-disponibles-aviso { font-size: 11px; color: #92400e; font-weight: 600; margin-bottom: 6px; }
+  .sin-datos-aviso { font-size: 15px; font-weight: 700; color: #991b1b; margin-top: 8px; }
+  .sin-datos-sub { font-size: 12px; color: var(--gris-claro); margin-top: 2px; }
+
+  /* ── Status bar ─────────────────────────────────────────────────────── */
+  .status-bar {
+    flex: 0 0 auto; display: flex; gap: 26px; align-items: center; flex-wrap: wrap;
+    padding: 7px 18px; background: linear-gradient(to right, #0f172a, #111827);
+    color: #d1d5db; font-size: 11px; z-index: 1100;
+  }
+  .station-status { display: flex; align-items: center; gap: 7px; position: relative; padding-right: 26px; }
+  .station-status:not(:last-child)::after {
+    content: ""; position: absolute; right: 0; top: 50%; transform: translateY(-50%);
+    width: 1px; height: 16px; background: #374151; opacity: 0.4;
+  }
+  .station-status .dot { width: 7px; height: 7px; border-radius: 50%; flex: 0 0 auto; transition: background-color 0.2s ease; }
+  .station-status .stress-dot { width: 6px; height: 6px; border-radius: 50%; flex: 0 0 auto; transition: background-color 0.2s ease; }
+  .dot-ok   { background: #22c55e; }
+  .dot-warn { background: #f59e0b; }
+  .dot-err  { background: #ef4444; }
+  .station-name { font-weight: 600; color: #f3f4f6; }
+  .station-time { color: #9ca3af; }
+  .station-conn { color: #9ca3af; }
+</style>
+</head>
+<body>
+
+<header class="app-header">
+  <div class="brand">
+    <span class="brand-accent"></span>
+    <div class="brand-text">
+      <span class="logo">🌱 AgroSentinel</span>
+      <span class="subtitle">Plataforma de decisión agrícola en tiempo real</span>
+    </div>
+  </div>
+  <div class="header-right">
+    <div class="live-indicator">
+      <span class="live-dot"></span>
+      EN VIVO
+    </div>
+    <span class="header-divider"></span>
+    <span class="header-clock" id="header-clock">--</span>
+  </div>
+</header>
+
+<div class="map-wrap">
+  <div id="map"></div>
+  <div class="leyenda">
+    <b>Estado VPD</b>
+    <div class="fila" style="border-left-color:#2ecc71"><span class="punto" style="background:#2ecc71"></span>Sin estres (&lt; 1.5 kPa)</div>
+    <div class="fila" style="border-left-color:#f39c12"><span class="punto" style="background:#f39c12"></span>Moderado (1.5 - 3.0 kPa)</div>
+    <div class="fila" style="border-left-color:#e74c3c"><span class="punto" style="background:#e74c3c"></span>Critico (&gt; 3.0 kPa)</div>
+    <div class="leyenda-actualizado">Actualizado: <span id="legend-updated">--</span></div>
+  </div>
+</div>
+
+<div id="statusbar" class="status-bar"></div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script type="module" src="js/main.js?v=14"></script>
+</body>
+</html>
