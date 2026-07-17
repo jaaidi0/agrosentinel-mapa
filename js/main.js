@@ -5,6 +5,7 @@ import { initStatusBar, markUpdated, setConnection } from './statusBar.js';
 import { initClock } from './clock.js';
 import { crearCapaHIBA } from './layers/hiba.js';
 import { crearCapaCitriData } from './layers/citridata.js';
+import { crearCapaNPK } from './layers/npk.js';
 
 var STATIONS = [
   { id: 'citri', lat: 37.71, lon: -5.28, nombre: "Sensor citrico", badge: "badge-real", cultivo: "Citrico",
@@ -27,13 +28,15 @@ var registros = STATIONS.map(function(station) {
   return { station: station, marker: marker, dataSource: dataSource, umbrales: umbrales };
 });
 
-Promise.all([crearCapaHIBA(), crearCapaCitriData()]).then(function(capas) {
+Promise.all([crearCapaHIBA(), crearCapaCitriData(), crearCapaNPK()]).then(function(capas) {
   var capaHIBA = capas[0].addTo(map);
   var capaCitri = capas[1].addTo(map);
+  var capaNPK = capas[2].addTo(map);
   L.control.layers(null, {
     'Sensores AgroSentinel': capaSensores,
     'CitriData SIAR': capaCitri,
-    'HIBA Meteorologica': capaHIBA
+    'HIBA Meteorologica': capaHIBA,
+    'HIBA NPK': capaNPK
   }, { collapsed: false, position: 'topright' }).addTo(map);
 });
 
